@@ -1,4 +1,3 @@
-# akij-resources-strategic-dashboard
 # Akij Resources Strategic Planning Dashboard
 
 ## Overview
