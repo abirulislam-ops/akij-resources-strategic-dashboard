@@ -83,14 +83,19 @@ def get_supabase_client():
 
 
 def sign_in(email, password):
-    """Return (session_or_None, error_message_or_None)."""
+    """Return (session_or_None, error_message_or_None).
+
+    Returns the Auth `Session` object (which has .access_token and
+    .refresh_token), not the raw AuthResponse.
+    """
     try:
         client = get_supabase_client()
         res = client.auth.sign_in_with_password({
             "email": email,
             "password": password,
         })
-        return res, None
+        # res is an AuthResponse; the token lives on res.session.
+        return res.session, None
     except Exception as e:
         return None, _friendly_auth_error(e)
 
