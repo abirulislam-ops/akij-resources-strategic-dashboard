@@ -83,10 +83,10 @@ def get_supabase_client():
 
 
 def sign_in(email, password):
-    """Return (session_or_None, error_message_or_None).
+    """Return (access_token_string_or_None, error_message_or_None).
 
-    Returns the Auth `Session` object (which has .access_token and
-    .refresh_token), not the raw AuthResponse.
+    Returns the JWT access token as a plain string (Streamlit session state
+    serializes objects, so a plain string survives reruns reliably).
     """
     try:
         client = get_supabase_client()
@@ -94,8 +94,7 @@ def sign_in(email, password):
             "email": email,
             "password": password,
         })
-        # res is an AuthResponse; the token lives on res.session.
-        return res.session, None
+        return res.session.access_token, None
     except Exception as e:
         return None, _friendly_auth_error(e)
 
@@ -112,17 +111,17 @@ def _friendly_auth_error(e):
 # ============================================================
 # READ-ONLY DATA (PostgREST via supabase-py)
 # ============================================================
-def _client_with_session(session):
+def _client_with_token(access_token):
     from supabase import create_client
     cfg = get_config()
     client = create_client(cfg["url"], cfg["anon"])
-    client.postgrest.auth(session.access_token)
+    client.postgrest.auth(access_token)
     return client
 
 
-def fetch_table(session, table, columns="*", filters=None, limit=5000):
+def fetch_table(access_token, table, columns="*", filters=None, limit=5000):
     """Read rows from a branch table via the user's authenticated session (RLS)."""
-    client = _client_with_session(session)
+    client = _client_with_token(access_token)
     q = client.table(table).select(columns)
     if filters:
         for col, val in filters.items():
@@ -132,9 +131,9 @@ def fetch_table(session, table, columns="*", filters=None, limit=5000):
     return pd.DataFrame(res.data or [])
 
 
-def fetch_count(session, table, filters=None):
+def fetch_count(access_token, table, filters=None):
     """Get the exact row count of a table (bypasses PostgREST 1000-row cap)."""
-    client = _client_with_session(session)
+    client = _client_with_token(access_token)
     q = client.table(table).select("*", count="exact").limit(1)
     if filters:
         for col, val in filters.items():
@@ -143,9 +142,9 @@ def fetch_count(session, table, filters=None):
     return res.count or 0
 
 
-def fetch_all(session, table, columns="*", filters=None, page_size=1000, max_rows=50000):
+def fetch_all(access_token, table, columns="*", filters=None, page_size=1000, max_rows=50000):
     """Fetch ALL rows of a table using range pagination (PostgREST caps 1000/req)."""
-    client = _client_with_session(session)
+    client = _client_with_token(access_token)
     frames = []
     offset = 0
     while offset < max_rows:

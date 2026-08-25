@@ -147,11 +147,11 @@ def login_screen():
             if not email or not password:
                 st.error("Please enter both email and password.")
             else:
-                session, err = sd.sign_in(email.strip(), password)
+                token, err = sd.sign_in(email.strip(), password)
                 if err:
                     st.error(err)
                 else:
-                    st.session_state["session"] = session
+                    st.session_state["token"] = token
                     st.session_state["email"] = email.strip()
                     st.rerun()
 
@@ -160,7 +160,7 @@ def login_screen():
 # MAIN APP
 # ============================================================
 def main_app():
-    session = st.session_state["session"]
+    token = st.session_state["token"]
 
     st.sidebar.title("SPA Dashboard")
     page = st.sidebar.radio(
@@ -176,26 +176,26 @@ def main_app():
             del st.session_state[k]
         st.rerun()
 
-    filters = sidebar_filters(session)
+    filters = sidebar_filters(token)
 
     if page == "Overview":
-        page_overview(session, filters)
+        page_overview(token, filters)
     elif page == "SBU Analysis":
-        page_sbu_analysis(session, filters)
+        page_sbu_analysis(token, filters)
     elif page == "Financial":
-        page_financial(session, filters)
+        page_financial(token, filters)
     elif page == "Inventory":
-        page_inventory(session, filters)
+        page_inventory(token, filters)
     elif page == "Sales":
-        page_sales(session, filters)
+        page_sales(token, filters)
     elif page == "Budget":
-        page_budget(session, filters)
+        page_budget(token, filters)
     elif page == "Employees":
-        page_employees(session, filters)
+        page_employees(token, filters)
     elif page == "Production":
-        page_production(session, filters)
+        page_production(token, filters)
     elif page == "SBU Strategic Gap Analysis":
-        page_gap_analysis(session)
+        page_gap_analysis(token)
     elif page == "Manual SQL":
         page_manual_sql()
 
@@ -632,7 +632,7 @@ def page_manual_sql():
 # ENTRY
 # ============================================================
 def main():
-    if "session" in st.session_state and st.session_state["session"] is not None:
+    if "token" in st.session_state and st.session_state["token"] is not None:
         main_app()
     else:
         login_screen()
