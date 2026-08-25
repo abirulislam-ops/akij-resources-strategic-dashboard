@@ -201,7 +201,7 @@ def main_app():
     page = st.sidebar.radio(
         "Navigate",
         ["Overview", "SBU Analysis", "Financial", "Inventory", "Sales", "Budget",
-         "Employees", "Production", "SBU Strategic Gap Analysis", "Manual SQL"],
+         "Employees", "Production", "Sales Performance", "SBU Strategic Gap Analysis", "Manual SQL"],
     )
 
     st.sidebar.divider()
@@ -229,6 +229,8 @@ def main_app():
         page_employees(token, filters)
     elif page == "Production":
         page_production(token, filters)
+    elif page == "Sales Performance":
+        page_sales_performance(token, filters)
     elif page == "SBU Strategic Gap Analysis":
         page_gap_analysis(token)
     elif page == "Manual SQL":
@@ -651,6 +653,90 @@ def page_sbu_analysis(token, f):
         c3.metric("Sales per Employee (BDT)", format_currency(per_emp))
     else:
         st.info("Insufficient data for employee productivity.")
+
+
+# ============================================================
+# SALES PERFORMANCE (Phase E)
+# ============================================================
+def page_sales_performance(token, f):
+    st.markdown("## Sales Performance")
+    st.caption("Sales force (who is a salesperson) and their monthly targets. "
+               "Note: achieved-sales-per-employee is only partially populated in the source ERP, "
+               "so performance here is target-based.")
+
+    bu = f["bu_df"]
+    bmap = dict(zip(bu["business_unit_id"], bu["short_code"]))
+    bfull = dict(zip(bu["business_unit_id"], bu["business_unit"]))
+
+    sf = sd.fetch_all(token, "sales_force", max_rows=50000)
+    stgt = sd.fetch_all(token, "sales_target", max_rows=200000)
+
+    if sf.empty and stgt.empty:
+        st.info("No sales performance data yet.")
+        return
+
+    # SBU filter for this tab
+    if not sf.empty:
+        sf["company"] = sf["business_unit_id"].map(bmap)
+    if not stgt.empty:
+        stgt["company"] = stgt["business_unit_id"].map(bmap)
+
+    all_companies = sorted(set(
+        list(sf["company"].dropna().unique()) if not sf.empty else []
+        + list(stgt["company"].dropna().unique()) if not stgt.empty else []
+    ))
+    sel = st.multiselect("Select SBUs", all_companies, default=all_companies)
+
+    if sel:
+        sf = sf[sf["company"].isin(sel)]
+        stgt = stgt[stgt["company"].isin(sel)]
+
+    # ---- 1. Sales force summary ----
+    st.markdown("### Sales Force")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Sales people", f"{sf['employee_id'].nunique():,}" if not sf.empty else 0)
+    c2.metric("Sales managers", f"{int(sf['is_manager'].sum()):,}" if not sf.empty and 'is_manager' in sf.columns else 0)
+    c3.metric("Territories", f"{sf['territory_name'].nunique():,}" if not sf.empty else 0)
+
+    if not sf.empty:
+        sf_show = sf[["employee_code", "employee_name", "company", "territory_name",
+                      "channel_name", "is_manager", "contact_number", "email"]]
+        st.dataframe(sf_show, use_container_width=True, height=350)
+        _download(sf_show, "Download Sales Force (Excel)", f"sales_force_{datetime.now():%Y%m%d_%H%M}.xlsx")
+
+    # ---- 2. Targets ----
+    st.markdown("### Sales Targets (BDT)")
+
+    # Month/year filter for targets
+    if not stgt.empty:
+        years = sorted(stgt["year_id"].dropna().unique().tolist())
+        stgt = _in_month_range(stgt, "year_id", "month_id", f["start"], f["end"])
+
+        # Target by SBU over months
+        t_sbu = stgt.groupby(["company", "year_id", "month_id"], as_index=False)["target_amount"].sum()
+        t_sbu["period"] = t_sbu["year_id"].astype(str) + "-" + t_sbu["month_id"].astype(str).str.zfill(2)
+        fig = px.line(t_sbu, x="period", y="target_amount", color="company",
+                      title="Sales target by SBU (BDT)")
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Top sales people by target
+        st.markdown("#### Top sales people by target (BDT)")
+        t_emp = stgt.groupby(["employee_code", "employee_name", "company"], as_index=False)["target_amount"].sum()
+        t_emp = t_emp.sort_values("target_amount", ascending=False).head(20)
+        fig2 = px.bar(t_emp, x="target_amount", y="employee_name", orientation="h",
+                      title="Top 20 sales people by target (BDT)")
+        st.plotly_chart(fig2, use_container_width=True)
+
+        # Target by channel
+        st.markdown("#### Target by channel (BDT)")
+        t_ch = stgt.groupby("channel_name", as_index=False)["target_amount"].sum().sort_values("target_amount", ascending=False)
+        fig3 = px.bar(t_ch, x="channel_name", y="target_amount", title="Target by channel (BDT)")
+        st.plotly_chart(fig3, use_container_width=True)
+
+        st.dataframe(stgt, use_container_width=True)
+        _download(stgt, "Download Sales Targets (Excel)", f"sales_targets_{datetime.now():%Y%m%d_%H%M}.xlsx")
+    else:
+        st.info("No sales target data.")
 
 
 # ============================================================

@@ -234,4 +234,6 @@ def list_tables():
         ("summary_sales_monthly", "Sales summary: company/year/month/orders/value"),
         ("sbu_gap_summary", "SBU Strategic Gap Analysis (summary)"),
         ("sbu_gap_detail", "SBU Strategic Gap Analysis (per-SBU detail)"),
+        ("sales_force", "Sales force (employee -> territory/channel)"),
+        ("sales_target", "Sales targets (monthly amount/qty per employee)"),
     ]
