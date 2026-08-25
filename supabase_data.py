@@ -112,13 +112,17 @@ def _friendly_auth_error(e):
 # ============================================================
 # READ-ONLY DATA (PostgREST via supabase-py)
 # ============================================================
-def fetch_table(session, table, columns="*", filters=None, limit=5000):
-    """Read rows from a branch table via the user's authenticated session (RLS)."""
+def _client_with_session(session):
     from supabase import create_client
     cfg = get_config()
     client = create_client(cfg["url"], cfg["anon"])
     client.postgrest.auth(session.access_token)
+    return client
 
+
+def fetch_table(session, table, columns="*", filters=None, limit=5000):
+    """Read rows from a branch table via the user's authenticated session (RLS)."""
+    client = _client_with_session(session)
     q = client.table(table).select(columns)
     if filters:
         for col, val in filters.items():
@@ -126,6 +130,41 @@ def fetch_table(session, table, columns="*", filters=None, limit=5000):
     q = q.limit(limit)
     res = q.execute()
     return pd.DataFrame(res.data or [])
+
+
+def fetch_count(session, table, filters=None):
+    """Get the exact row count of a table (bypasses PostgREST 1000-row cap)."""
+    client = _client_with_session(session)
+    q = client.table(table).select("*", count="exact").limit(1)
+    if filters:
+        for col, val in filters.items():
+            q = q.eq(col, val)
+    res = q.execute()
+    return res.count or 0
+
+
+def fetch_all(session, table, columns="*", filters=None, page_size=1000, max_rows=50000):
+    """Fetch ALL rows of a table using range pagination (PostgREST caps 1000/req)."""
+    client = _client_with_session(session)
+    frames = []
+    offset = 0
+    while offset < max_rows:
+        q = client.table(table).select(columns)
+        if filters:
+            for col, val in filters.items():
+                q = q.eq(col, val)
+        q = q.range(offset, offset + page_size - 1)
+        res = q.execute()
+        data = res.data or []
+        if not data:
+            break
+        frames.append(pd.DataFrame(data))
+        if len(data) < page_size:
+            break
+        offset += page_size
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 # ============================================================
@@ -184,12 +223,16 @@ def list_tables():
         ("business_unit", "Business units (short code, name)"),
         ("department", "Departments"),
         ("designation", "Designations / job titles"),
+        ("section", "Sections (sub-departments)"),
         ("general_ledger", "GL accounts (code, name, IS group)"),
-        ("employee", "Employees (code, name, BU, dept, designation)"),
-        ("employee_details", "Employee contact (email, mobile)"),
+        ("employee", "Employees (code, name, BU, dept, designation, section, joining date)"),
+        ("employee_details", "Employee contact (email, mobile, payroll group, status, HR position)"),
+        ("employee_responsible_department", "Which department each employee heads"),
         ("budget_row", "Budget by BU / GL / year / month"),
         ("production_order", "Production orders (qty, item, date)"),
         ("summary_finance_monthly", "Finance summary: company/year/month/ISGroup/GL"),
         ("summary_inventory_monthly", "Inventory summary: company/year/month/stock type"),
         ("summary_sales_monthly", "Sales summary: company/year/month/orders/value"),
+        ("sbu_gap_summary", "SBU Strategic Gap Analysis (summary)"),
+        ("sbu_gap_detail", "SBU Strategic Gap Analysis (per-SBU detail)"),
     ]
