@@ -201,7 +201,8 @@ def main_app():
     page = st.sidebar.radio(
         "Navigate",
         ["Overview", "SBU Analysis", "Financial", "Inventory", "Sales", "Budget",
-         "Employees", "Production", "Sales Performance", "SBU Strategic Gap Analysis", "Manual SQL"],
+         "Employees", "Production", "Sales Performance", "SBU Strategic Gap Analysis",
+         "ROMI Analysis", "Manual SQL"],
     )
 
     st.sidebar.divider()
@@ -233,6 +234,9 @@ def main_app():
         page_sales_performance(token, filters)
     elif page == "SBU Strategic Gap Analysis":
         page_gap_analysis(token)
+    elif page == "ROMI Analysis":
+        import spa_romi_tab
+        spa_romi_tab.page_romi()
     elif page == "Manual SQL":
         page_manual_sql()
 
