@@ -99,7 +99,8 @@ def page_romi():
     def _month_match(c):
         rm = c.get("report_month")
         if not rm:
-            return False
+            # legacy rows without a month only show in the full "All" view
+            return year_sel == "All years" and month_sel == "All months"
         y_ok = year_sel == "All years" or rm[:4] == year_sel
         m_ok = month_sel == "All months" or rm[5:7] == f"{int(month_sel):02d}"
         return y_ok and m_ok
@@ -107,6 +108,10 @@ def page_romi():
     keep = [i for i, c in enumerate(campaigns) if _month_match(c)]
     campaigns = [campaigns[i] for i in keep]
     rows = [rows[i] for i in keep]
+
+    if not rows:
+        st.info("No campaigns match the selected filter.")
+        return
 
     # ============================================================
     # 1. Overview KPIs
