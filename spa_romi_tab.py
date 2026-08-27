@@ -83,6 +83,16 @@ def page_romi():
     label_by_id = {i: f"{s['code']} — {s['name']}" for i, s in sbus.items()}
 
     # ============================================================
+    # 0. Month filter (monthly basis)
+    # ============================================================
+    months = sorted({c.get("report_month") for c in campaigns if c.get("report_month")}, reverse=True)
+    month_sel = st.selectbox("Reporting Month", ["All months"] + months, index=1 if months else 0)
+    if month_sel != "All months":
+        keep = [i for i, c in enumerate(campaigns) if c.get("report_month") == month_sel]
+        campaigns = [campaigns[i] for i in keep]
+        rows = [rows[i] for i in keep]
+
+    # ============================================================
     # 1. Overview KPIs
     # ============================================================
     tot = romi_logic.sbu_totals(rows)
@@ -105,7 +115,7 @@ def page_romi():
         df[c] = df[c].apply(fmt_money)
     df["ROMI Top"] = df["romi_top"].apply(fmt_romi)
     df["ROMI Bottom"] = df["romi_bottom"].apply(fmt_romi)
-    show_cols = ["SBU", "campaign_name", "category", "start_date", "end_date",
+    show_cols = ["SBU", "report_month", "campaign_name", "category", "start_date", "end_date",
                  "actual_rev", "organic_rev", "sply_rev", "incr_rev", "GP Margin %",
                  "incr_profit", "marketing_expense", "ROMI Top", "ROMI Bottom", "pending"]
     st.dataframe(df[show_cols], use_container_width=True, height=400)
@@ -195,6 +205,9 @@ def page_romi():
             campaign_name = st.text_input("Campaign Name", value=c["campaign_name"])
             category = st.selectbox("Category", ["ATL", "BTL", "Other"],
                                     index=["ATL", "BTL", "Other"].index(c.get("category") or "Other"))
+            rm_options = list(dict.fromkeys([c.get("report_month")] + romi_logic.month_options()))
+            report_month = st.selectbox("Reporting Month", rm_options,
+                                        index=rm_options.index(c.get("report_month")) if c.get("report_month") in rm_options else 0)
         with m2:
             start_date = st.date_input("Start Date", value=dt.date.fromisoformat(c["start_date"]) if isinstance(c["start_date"], str) else c["start_date"])
             end_date = st.date_input("End Date", value=dt.date.fromisoformat(c["end_date"]) if isinstance(c["end_date"], str) else c["end_date"])
@@ -245,6 +258,7 @@ def page_romi():
         updates = {
             "campaign_name": campaign_name,
             "category": category,
+            "report_month": report_month,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "marketing_expense_monthly": float(marketing_expense),

@@ -50,6 +50,7 @@ def compute_effective(row):
         "business_unit_id": get("business_unit_id"),
         "campaign_name": get("campaign_name"),
         "category": get("category"),
+        "report_month": get("report_month"),
         "start_date": get("start_date"),
         "end_date": get("end_date"),
         # F-H
@@ -103,6 +104,7 @@ COLUMN_ORDER = [
     ("business_unit_id", "SBU"),
     ("campaign_name", "Campaign Name"),
     ("category", "Category"),
+    ("report_month", "Report Month"),
     ("start_date", "Start Date"),
     ("end_date", "End Date"),
     ("actual_rev", "Actual Revenue (avg)"),
@@ -118,3 +120,23 @@ COLUMN_ORDER = [
     ("romi_top", "ROMI (Top Line)"),
     ("romi_bottom", "ROMI (Bottom Line)"),
 ]
+
+
+def month_options(n=18):
+    """Return a list of 'YYYY-MM' strings for the last n months (newest first)."""
+    import datetime as dt
+    today = dt.date.today()
+    y, m = today.year, today.month
+    out = []
+    for _ in range(n):
+        out.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return out
+
+
+def current_month():
+    import datetime as dt
+    return f"{dt.date.today():%Y-%m}"
