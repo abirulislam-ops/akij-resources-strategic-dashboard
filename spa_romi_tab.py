@@ -83,14 +83,30 @@ def page_romi():
     label_by_id = {i: f"{s['code']} — {s['name']}" for i, s in sbus.items()}
 
     # ============================================================
-    # 0. Month filter (monthly basis)
+    # 0. Month/Year filter (all months visible by default)
     # ============================================================
-    months = sorted({c.get("report_month") for c in campaigns if c.get("report_month")}, reverse=True)
-    month_sel = st.selectbox("Reporting Month", ["All months"] + months, index=1 if months else 0)
-    if month_sel != "All months":
-        keep = [i for i, c in enumerate(campaigns) if c.get("report_month") == month_sel]
-        campaigns = [campaigns[i] for i in keep]
-        rows = [rows[i] for i in keep]
+    months_list = sorted({c.get("report_month") for c in campaigns if c.get("report_month")}, reverse=True)
+    years = sorted({m[:4] for m in months_list}, reverse=True)
+    f1, f2 = st.columns(2)
+    with f1:
+        year_sel = st.selectbox("Year", ["All years"] + years, index=0)
+    with f2:
+        month_sel = st.selectbox(
+            "Month", ["All months"] + list(range(1, 13)),
+            index=0, format_func=lambda m: "All months" if m == "All months"
+            else dt.date(2020, int(m), 1).strftime("%B"))
+
+    def _month_match(c):
+        rm = c.get("report_month")
+        if not rm:
+            return False
+        y_ok = year_sel == "All years" or rm[:4] == year_sel
+        m_ok = month_sel == "All months" or rm[5:7] == f"{int(month_sel):02d}"
+        return y_ok and m_ok
+
+    keep = [i for i, c in enumerate(campaigns) if _month_match(c)]
+    campaigns = [campaigns[i] for i in keep]
+    rows = [rows[i] for i in keep]
 
     # ============================================================
     # 1. Overview KPIs
