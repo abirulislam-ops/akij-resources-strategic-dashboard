@@ -186,8 +186,8 @@ def page_romi():
                "markedly from the ledger-derived campaign-spend pool.")
     rec = []
     for c in campaigns:
-        pool = c.get("spend_pool_monthly")
-        o = c.get("marketing_expense_monthly")
+        pool = c.get("spend_pool_total")
+        o = c.get("marketing_expense_total")
         if pool is None:
             continue
         pool, o = float(pool), float(o or 0)
@@ -195,14 +195,14 @@ def page_romi():
         rec.append({
             "SBU": label_by_id.get(c["business_unit_id"], str(c["business_unit_id"])),
             "Campaign": c["campaign_name"],
-            "Entered O (monthly)": o,
-            "Spend Pool (monthly)": pool,
+            "Entered O (full)": o,
+            "Spend Pool (full)": pool,
             "Diff %": (o - pool) / denom * 100,
         })
     if rec:
         rec_df = pd.DataFrame(rec)
-        rec_df["Entered O (monthly)"] = rec_df["Entered O (monthly)"].apply(fmt_money)
-        rec_df["Spend Pool (monthly)"] = rec_df["Spend Pool (monthly)"].apply(fmt_money)
+        rec_df["Entered O (full)"] = rec_df["Entered O (full)"].apply(fmt_money)
+        rec_df["Spend Pool (full)"] = rec_df["Spend Pool (full)"].apply(fmt_money)
         rec_df["Diff %"] = rec_df["Diff %"].apply(lambda v: f"{v:,.0f}%")
         st.dataframe(rec_df, use_container_width=True)
     else:
@@ -232,7 +232,7 @@ def page_romi():
         with m2:
             start_date = st.date_input("Start Date", value=dt.date.fromisoformat(c["start_date"]) if isinstance(c["start_date"], str) else c["start_date"])
             end_date = st.date_input("End Date", value=dt.date.fromisoformat(c["end_date"]) if isinstance(c["end_date"], str) else c["end_date"])
-        marketing_expense = st.number_input("Marketing Expense (monthly, BDT) — O",
+        marketing_expense = st.number_input("Marketing Expense (full campaign, BDT) — O",
                                             value=float(eff["marketing_expense"] or 0), step=1000.0, format="%.0f")
 
         st.markdown("#### Override computed / formula values")
@@ -282,7 +282,7 @@ def page_romi():
             "report_month": report_month,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
-            "marketing_expense_monthly": float(marketing_expense),
+            "marketing_expense_total": float(marketing_expense),
             "edited_by": "admin",
             "edited_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         }

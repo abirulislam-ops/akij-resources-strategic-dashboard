@@ -35,7 +35,7 @@ def compute_effective(row):
     gg = _ov(row, "organic_rev_ov", num("organic_rev") or 0.0)
     h = _ov(row, "sply_rev_ov", num("sply_rev") or 0.0)
     j = _ov(row, "gp_margin_ov", num("gp_margin") or 0.0)
-    o = num("marketing_expense_monthly") or 0.0
+    o = num("marketing_expense_total") or 0.0
 
     i = _ov(row, "incr_rev_ov", f - gg)
     k = _ov(row, "actual_profit_ov", f * j)
@@ -72,7 +72,7 @@ def compute_effective(row):
         "romi_top": p,
         "romi_bottom": r,
         # transparency
-        "spend_pool_monthly": num("spend_pool_monthly"),
+        "spend_pool_total": num("spend_pool_total"),
         "organic_months_used": get("organic_months_used"),
         "organic_mode": get("organic_mode"),
         "as_of": get("as_of"),
@@ -107,16 +107,16 @@ COLUMN_ORDER = [
     ("report_month", "Report Month"),
     ("start_date", "Start Date"),
     ("end_date", "End Date"),
-    ("actual_rev", "Actual Revenue (avg)"),
-    ("organic_rev", "Organic/Base Sales (6-mo avg)"),
-    ("sply_rev", "SPLY Revenue (avg)"),
+    ("actual_rev", "Actual Revenue (full)"),
+    ("organic_rev", "Organic/Base Sales (full)"),
+    ("sply_rev", "SPLY Revenue (full)"),
     ("incr_rev", "Incremental Revenue"),
     ("gp_margin", "GP Margin (%)"),
     ("actual_profit", "Actual Profit"),
     ("base_profit", "Base Profit"),
     ("sply_profit", "SPLY Profit"),
     ("incr_profit", "Incremental Profit"),
-    ("marketing_expense", "Marketing Expense (monthly)"),
+    ("marketing_expense", "Marketing Expense (full)"),
     ("romi_top", "ROMI (Top Line)"),
     ("romi_bottom", "ROMI (Bottom Line)"),
 ]
