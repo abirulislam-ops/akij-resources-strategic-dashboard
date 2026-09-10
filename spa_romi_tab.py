@@ -51,11 +51,11 @@ OVERRIDE_FIELDS = [
     ("organic_rev", "Organic/Base Sales (G)", "money"),
     ("sply_rev", "SPLY Revenue (H)", "money"),
     ("gp_margin", "GP Margin % (J)", "pct"),
-    ("incr_rev", "Incremental Revenue (I)", "money"),
+    ("incr_rev", "Marketing Revenue (I)", "money"),
     ("actual_profit", "Actual Profit (K)", "money"),
     ("base_profit", "Base Profit (L)", "money"),
     ("sply_profit", "SPLY Profit (M)", "money"),
-    ("incr_profit", "Incremental Profit (N)", "money"),
+    ("incr_profit", "Marketing Profit (N)", "money"),
     ("romi_top", "ROMI Top Line (P)", "romi"),
     ("romi_bottom", "ROMI Bottom Line (R)", "romi"),
 ]
@@ -123,7 +123,7 @@ def page_romi():
     tot = romi_logic.sbu_totals(rows)
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Campaigns", tot["n_campaigns"])
-    c2.metric("Total Incremental Revenue", fmt_money(tot["total_incr_rev"]))
+    c2.metric("Total Marketing Revenue", fmt_money(tot["total_incr_rev"]))
     c3.metric("Total Marketing Expense", fmt_money(tot["total_marketing"]))
     c4.metric("Total ROMI (Top Line)", fmt_romi(tot["total_romi_top"]))
 
