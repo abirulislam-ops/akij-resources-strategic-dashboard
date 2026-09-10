@@ -61,6 +61,10 @@ OVERRIDE_FIELDS = [
 ]
 
 
+CATEGORIES = ["ATL", "Digital", "BTL", "Outdoor", "Gift & Printing",
+              "Research", "Trade Incentive Offer", "Other"]
+
+
 def _effective_df():
     campaigns = sc.fetch_campaigns()
     if not campaigns:
@@ -224,8 +228,8 @@ def page_romi():
         m1, m2 = st.columns(2)
         with m1:
             campaign_name = st.text_input("Campaign Name", value=c["campaign_name"])
-            category = st.selectbox("Category", ["ATL", "BTL", "Other"],
-                                    index=["ATL", "BTL", "Other"].index(c.get("category") or "Other"))
+            category = st.selectbox("Category", CATEGORIES,
+                                    index=CATEGORIES.index(c.get("category") or "Other"))
             rm_options = list(dict.fromkeys([c.get("report_month")] + romi_logic.month_options()))
             report_month = st.selectbox("Reporting Month", rm_options,
                                         index=rm_options.index(c.get("report_month")) if c.get("report_month") in rm_options else 0)
