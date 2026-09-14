@@ -150,36 +150,31 @@ def page_romi():
     st.download_button("Download CSV", csv, "romi_campaigns.csv", "text/csv")
 
     # ============================================================
-    # 3. SBU totals + benchmark deviation
+    # 3. Branch mark vs actual (charts + hover table)
     # ============================================================
     st.divider()
-    st.subheader("SBU-wise Totals & Benchmark")
-    by_bu = {}
-    for r in rows:
-        by_bu.setdefault(r["business_unit_id"], []).append(r)
-    tot_rows = []
-    for bu_id, rws in by_bu.items():
-        t = romi_logic.sbu_totals(rws)
-        s = sbus.get(bu_id, {})
-        t["SBU"] = label_by_id.get(bu_id, str(bu_id))
-        t["benchmark_top"] = s.get("benchmark_top")
-        t["benchmark_bottom"] = s.get("benchmark_bottom")
-        tot_rows.append(t)
-    tot_df = pd.DataFrame(tot_rows)
-    if not tot_df.empty:
-        tot_df["deviation_top"] = tot_df.apply(
-            lambda r: (r["total_romi_top"] - r["benchmark_top"]) if r["benchmark_top"] is not None else None, axis=1)
-        tot_df["deviation_bottom"] = tot_df.apply(
-            lambda r: (r["total_romi_bottom"] - r["benchmark_bottom"]) if r["benchmark_bottom"] is not None else None, axis=1)
-        disp = tot_df[["SBU", "n_campaigns", "total_romi_top", "benchmark_top", "deviation_top",
-                       "total_romi_bottom", "benchmark_bottom", "deviation_bottom"]].copy()
-        disp.columns = ["SBU", "Campaigns", "ROMI Top", "Benchmark Top", "Deviation Top",
-                        "ROMI Bottom", "Benchmark Bottom", "Deviation Bottom"]
-        disp["ROMI Top"] = disp["ROMI Top"].apply(fmt_romi)
-        disp["ROMI Bottom"] = disp["ROMI Bottom"].apply(fmt_romi)
-        disp["Deviation Top"] = disp["Deviation Top"].apply(lambda v: fmt_romi(v) if v is not None else "—")
-        disp["Deviation Bottom"] = disp["Deviation Bottom"].apply(lambda v: fmt_romi(v) if v is not None else "—")
-        st.dataframe(disp, use_container_width=True)
+    st.subheader("Branch Mark vs Actual")
+    bm_rows = romi_logic.benchmark_rows(rows, sbus)
+    if bm_rows:
+        top_df = pd.DataFrame({
+            "Actual": {r["code"]: r["total_romi_top"] for r in bm_rows},
+            "Mark (≥)": {r["code"]: r["benchmark_top"] for r in bm_rows if r["benchmark_top"] is not None},
+        })
+        bot_df = pd.DataFrame({
+            "Actual": {r["code"]: r["total_romi_bottom"] for r in bm_rows},
+            "Mark (≥)": {r["code"]: r["benchmark_bottom"] for r in bm_rows if r["benchmark_bottom"] is not None},
+        })
+        c1, c2 = st.columns(2)
+        with c1:
+            st.caption("Top-line ROMI — actual vs mark")
+            st.bar_chart(top_df, height=320)
+        with c2:
+            st.caption("Bottom-line ROMI — actual vs mark")
+            st.bar_chart(bot_df, height=320)
+        st.markdown(
+            romi_logic.BRANCHMARK_CSS + romi_logic.branchmark_table_html(bm_rows),
+            unsafe_allow_html=True,
+        )
 
     # ============================================================
     # 4. Reconciliation (pool vs entered expense)
