@@ -150,16 +150,14 @@ def benchmark_rows(effective_rows, sbus):
     """Aggregate effective campaign rows by business unit and attach the
     branch-mark benchmark (top/bottom) plus its rationale note.
 
+    Every benchmarked SBU (benchmark_top/bottom set) is included even when it
+    has no campaign data yet, so the full branch-mark list is always visible.
+
     sbus: dict keyed by int(business_unit_id) -> SBU row dict.
     """
-    by_bu = {}
-    for r in effective_rows:
-        by_bu.setdefault(r.get("business_unit_id"), []).append(r)
-    out = []
-    for bu_id, rws in by_bu.items():
-        t = sbu_totals(rws)
+    def make_row(bu_id, t):
         s = sbus.get(int(bu_id), {}) if bu_id is not None else {}
-        out.append({
+        return {
             "business_unit_id": int(bu_id) if bu_id is not None else None,
             "code": s.get("code") or str(bu_id),
             "name": s.get("name") or "",
@@ -169,8 +167,20 @@ def benchmark_rows(effective_rows, sbus):
             "benchmark_top": s.get("benchmark_top"),
             "benchmark_bottom": s.get("benchmark_bottom"),
             "benchmark_note": s.get("benchmark_note") or "",
-        })
-    out.sort(key=lambda r: -(r["total_romi_top"] if r["total_romi_top"] is not None else -1e18))
+        }
+
+    by_bu = {}
+    for r in effective_rows:
+        by_bu.setdefault(r.get("business_unit_id"), []).append(r)
+    out = [make_row(bu_id, sbu_totals(rws)) for bu_id, rws in by_bu.items()]
+    seen = {r["business_unit_id"] for r in out}
+
+    empty = {"n_campaigns": 0, "total_romi_top": None, "total_romi_bottom": None}
+    for bu_id, s in sbus.items():
+        if (s.get("benchmark_top") is not None or s.get("benchmark_bottom") is not None) and bu_id not in seen:
+            out.append(make_row(bu_id, empty))
+
+    out.sort(key=lambda r: (-(r["total_romi_top"] if r["total_romi_top"] is not None else -1e18), r["code"]))
     return out
 
 
@@ -186,6 +196,7 @@ BRANCHMARK_CSS = (
     ".bm .n{text-align:right;font-variant-numeric:tabular-nums;}"
     ".bm .hit{color:#0a7d33;font-weight:700;}"
     ".bm .miss{color:#c0392b;font-weight:700;}"
+    ".bm .nodata{color:#b45309;font-weight:700;}"
     ".bm .na{color:#999;}"
     ".bm .tip{position:relative;cursor:help;border-bottom:1px dotted #999;}"
     ".bm .tip .tooltip{visibility:hidden;opacity:0;position:absolute;bottom:130%;left:0;"
@@ -220,11 +231,16 @@ def branchmark_table_html(rows):
         note = r.get("benchmark_note") or ""
         rt, rb = r.get("total_romi_top"), r.get("total_romi_bottom")
         has_bm = bt is not None or bb is not None
-        hit = (has_bm
-               and (rt or 0) >= (bt if bt is not None else -1e18)
-               and (rb or 0) >= (bb if bb is not None else -1e18))
-        status = "<span class='hit'>HITTING</span>" if hit else (
-            "<span class='miss'>MISSING</span>" if has_bm else "<span class='na'>—</span>")
+        has_data = rt is not None or rb is not None
+        if not has_bm:
+            status = "<span class='na'>—</span>"
+        elif not has_data:
+            status = "<span class='nodata'>NO DATA</span>"
+        else:
+            hit = ((rt or 0) >= (bt if bt is not None else -1e18)
+                   and (rb or 0) >= (bb if bb is not None else -1e18))
+            status = ("<span class='hit'>HITTING</span>" if hit
+                      else "<span class='miss'>MISSING</span>")
         body.append(
             f"<tr><td>{_html.escape(r['code'])}</td>"
             f"<td class='n'>{r['n_campaigns']}</td>"

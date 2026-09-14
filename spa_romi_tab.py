@@ -156,14 +156,16 @@ def page_romi():
     st.subheader("Branch Mark vs Actual")
     bm_rows = romi_logic.benchmark_rows(rows, sbus)
     if bm_rows:
+        def _n(v):
+            return v if v is not None else float("nan")
         top_df = pd.DataFrame({
-            "Actual": {r["code"]: r["total_romi_top"] for r in bm_rows},
+            "Actual": {r["code"]: _n(r["total_romi_top"]) for r in bm_rows},
             "Mark (≥)": {r["code"]: r["benchmark_top"] for r in bm_rows if r["benchmark_top"] is not None},
-        })
+        }).astype(float)
         bot_df = pd.DataFrame({
-            "Actual": {r["code"]: r["total_romi_bottom"] for r in bm_rows},
+            "Actual": {r["code"]: _n(r["total_romi_bottom"]) for r in bm_rows},
             "Mark (≥)": {r["code"]: r["benchmark_bottom"] for r in bm_rows if r["benchmark_bottom"] is not None},
-        })
+        }).astype(float)
         c1, c2 = st.columns(2)
         with c1:
             st.caption("Top-line ROMI — actual vs mark")
