@@ -282,8 +282,8 @@ def benchmark_chart_fig(bm_rows, which="top", log_y=True):
         title=title,
         barmode="group",
         height=400,
-        margin=dict(l=10, r=10, t=40, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        margin=dict(l=10, r=10, t=50, b=40),
+        legend=dict(orientation="h", yanchor="top", y=-0.28, x=0.5, xanchor="center"),
         yaxis_title="ROMI (x)",
         xaxis_tickangle=-45,
     )
