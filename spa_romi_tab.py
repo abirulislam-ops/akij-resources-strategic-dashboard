@@ -157,13 +157,10 @@ def page_romi():
     bm_rows = romi_logic.benchmark_rows(rows, sbus)
     if bm_rows:
         log_y = st.toggle("Log scale (recommended — makes the branch marks visible)", value=True)
-        c1, c2 = st.columns(2)
-        with c1:
-            st.plotly_chart(romi_logic.benchmark_chart_fig(bm_rows, "top", log_y),
-                            use_container_width=True)
-        with c2:
-            st.plotly_chart(romi_logic.benchmark_chart_fig(bm_rows, "bottom", log_y),
-                            use_container_width=True)
+        st.plotly_chart(romi_logic.benchmark_chart_fig(bm_rows, "top", log_y),
+                        use_container_width=True)
+        st.plotly_chart(romi_logic.benchmark_chart_fig(bm_rows, "bottom", log_y),
+                        use_container_width=True)
         st.markdown(
             romi_logic.BRANCHMARK_CSS + romi_logic.branchmark_table_html(bm_rows),
             unsafe_allow_html=True,
