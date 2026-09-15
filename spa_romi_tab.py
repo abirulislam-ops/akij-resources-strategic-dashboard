@@ -156,27 +156,42 @@ def page_romi():
     st.subheader("Branch Mark vs Actual")
     bm_rows = romi_logic.benchmark_rows(rows, sbus)
     if bm_rows:
-        def _n(v):
-            return v if v is not None else float("nan")
-        top_df = pd.DataFrame({
-            "Actual": {r["code"]: _n(r["total_romi_top"]) for r in bm_rows},
-            "Mark (≥)": {r["code"]: r["benchmark_top"] for r in bm_rows if r["benchmark_top"] is not None},
-        }).astype(float)
-        bot_df = pd.DataFrame({
-            "Actual": {r["code"]: _n(r["total_romi_bottom"]) for r in bm_rows},
-            "Mark (≥)": {r["code"]: r["benchmark_bottom"] for r in bm_rows if r["benchmark_bottom"] is not None},
-        }).astype(float)
+        log_y = st.toggle("Log scale (recommended — makes the branch marks visible)", value=True)
         c1, c2 = st.columns(2)
         with c1:
-            st.caption("Top-line ROMI — actual vs mark")
-            st.bar_chart(top_df, height=320)
+            st.plotly_chart(romi_logic.benchmark_chart_fig(bm_rows, "top", log_y),
+                            use_container_width=True)
         with c2:
-            st.caption("Bottom-line ROMI — actual vs mark")
-            st.bar_chart(bot_df, height=320)
+            st.plotly_chart(romi_logic.benchmark_chart_fig(bm_rows, "bottom", log_y),
+                            use_container_width=True)
         st.markdown(
             romi_logic.BRANCHMARK_CSS + romi_logic.branchmark_table_html(bm_rows),
             unsafe_allow_html=True,
         )
+
+    # ============================================================
+    # 4. Top performing campaigns / activities
+    # ============================================================
+    st.divider()
+    st.subheader("Top Performing Campaigns")
+    top = romi_logic.top_campaigns(rows, n=10)
+    if top:
+        td = pd.DataFrame([{
+            "SBU": label_by_id.get(r["business_unit_id"], str(r["business_unit_id"])),
+            "Campaign": r["campaign_name"],
+            "Activity": r["category"],
+            "Marketing Expense": r["marketing_expense"],
+            "Marketing Led Increment": r["incr_rev"],
+            "ROMI (Top Line)": r["romi_top"],
+            "ROMI (Bottom Line)": r["romi_bottom"],
+        } for r in top])
+        td["Marketing Expense"] = td["Marketing Expense"].apply(fmt_money)
+        td["Marketing Led Increment"] = td["Marketing Led Increment"].apply(fmt_money)
+        td["ROMI (Top Line)"] = td["ROMI (Top Line)"].apply(fmt_romi)
+        td["ROMI (Bottom Line)"] = td["ROMI (Bottom Line)"].apply(fmt_romi)
+        st.dataframe(td, use_container_width=True)
+    else:
+        st.info("No campaigns with computable ROMI yet.")
 
     # ============================================================
     # 4. Reconciliation (pool vs entered expense)

@@ -249,3 +249,53 @@ def branchmark_table_html(rows):
             f"<td>{status}</td></tr>"
         )
     return head + "".join(body) + "</tbody></table>"
+
+
+def benchmark_chart_fig(bm_rows, which="top", log_y=True):
+    """Return a Plotly grouped-bar figure: Actual (blue) vs Mark (amber).
+
+    which: "top" | "bottom". log_y uses a logarithmic axis so the branch marks
+    (2–8x) stay visible next to large/outlier actual ROMI values.
+    """
+    import plotly.graph_objects as go
+
+    codes = [r["code"] for r in bm_rows]
+    if which == "bottom":
+        actual = [r["total_romi_bottom"] for r in bm_rows]
+        mark = [r["benchmark_bottom"] for r in bm_rows]
+        title = "Bottom-line ROMI — actual vs mark"
+    else:
+        actual = [r["total_romi_top"] for r in bm_rows]
+        mark = [r["benchmark_top"] for r in bm_rows]
+        title = "Top-line ROMI — actual vs mark"
+
+    if log_y:
+        # Log axes cannot render non-positive values; drop them here (they
+        # still appear as MISSING in the branch-mark table below).
+        actual = [v if (v is not None and v > 0) else None for v in actual]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(name="Actual", x=codes, y=actual, marker_color="#2563eb"))
+    fig.add_trace(go.Bar(name="Mark (≥)", x=codes, y=mark, marker_color="#f59e0b",
+                         marker_line_color="#7c2d12", marker_line_width=1.5))
+    fig.update_layout(
+        title=title,
+        barmode="group",
+        height=400,
+        margin=dict(l=10, r=10, t=40, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        yaxis_title="ROMI (x)",
+        xaxis_tickangle=-45,
+    )
+    if log_y:
+        fig.update_yaxes(type="log")
+    return fig
+
+
+def top_campaigns(effective_rows, n=10):
+    """Return campaigns sorted by top-line ROMI (desc), skipping rows with no
+    marketing expense or no computable ROMI."""
+    valid = [r for r in effective_rows
+             if (r.get("marketing_expense") or 0) > 0 and r.get("romi_top") is not None]
+    valid.sort(key=lambda r: -(r["romi_top"] or 0))
+    return valid[:n]
