@@ -209,12 +209,16 @@ BRANCHMARK_CSS = (
 
 
 def branchmark_table_html(rows):
-    """HTML branch-mark table with hover tooltips explaining each mark."""
+    """HTML branch-mark table with hover tooltips explaining each mark.
+
+    Columns: SBU | Campaigns | Mark Top | ROMI Top | Gap Top |
+             Mark Bottom | ROMI Bottom | Gap Bottom | Status.
+    """
     head = (
         "<table class='bm'><thead><tr>"
         "<th>SBU</th><th>Campaigns</th>"
-        "<th>ROMI Top</th><th>Mark Top</th>"
-        "<th>ROMI Bottom</th><th>Mark Bottom</th><th>Status</th>"
+        "<th>Mark Top</th><th>ROMI Top</th><th>Gap Top</th>"
+        "<th>Mark Bottom</th><th>ROMI Bottom</th><th>Gap Bottom</th><th>Status</th>"
         "</tr></thead><tbody>"
     )
 
@@ -224,6 +228,13 @@ def branchmark_table_html(rows):
         tip = _html.escape(note) if note else ""
         return (f"<span class='tip'>≥{float(v):,.2f}x"
                 f"<span class='tooltip'>{tip}</span></span>")
+
+    def gap_cell(actual, mark):
+        if actual is None or mark is None:
+            return "<span class='na'>—</span>"
+        g = float(actual) - float(mark)
+        cls = "hit" if g >= 0 else "miss"
+        return f"<span class='{cls}'>{g:+,.2f}x</span>"
 
     body = []
     for r in rows:
@@ -244,8 +255,10 @@ def branchmark_table_html(rows):
         body.append(
             f"<tr><td>{_html.escape(r['code'])}</td>"
             f"<td class='n'>{r['n_campaigns']}</td>"
-            f"<td class='n'>{_fmt_romi_x(rt)}</td><td class='n'>{mark_cell(bt, note)}</td>"
-            f"<td class='n'>{_fmt_romi_x(rb)}</td><td class='n'>{mark_cell(bb, note)}</td>"
+            f"<td class='n'>{mark_cell(bt, note)}</td><td class='n'>{_fmt_romi_x(rt)}</td>"
+            f"<td class='n'>{gap_cell(rt, bt)}</td>"
+            f"<td class='n'>{mark_cell(bb, note)}</td><td class='n'>{_fmt_romi_x(rb)}</td>"
+            f"<td class='n'>{gap_cell(rb, bb)}</td>"
             f"<td>{status}</td></tr>"
         )
     return head + "".join(body) + "</tbody></table>"
@@ -292,10 +305,16 @@ def benchmark_chart_fig(bm_rows, which="top", log_y=True):
     return fig
 
 
-def top_campaigns(effective_rows, n=10):
-    """Return campaigns sorted by top-line ROMI (desc), skipping rows with no
-    marketing expense or no computable ROMI."""
+def rank_campaigns(effective_rows, n=10):
+    """Return (top, bottom) campaign lists sorted by top-line ROMI, skipping
+    rows with no marketing expense or no computable ROMI.
+
+    top    = highest ROMI (descending).
+    bottom = lowest ROMI (ascending, i.e. worst first).
+    """
     valid = [r for r in effective_rows
              if (r.get("marketing_expense") or 0) > 0 and r.get("romi_top") is not None]
     valid.sort(key=lambda r: -(r["romi_top"] or 0))
-    return valid[:n]
+    top = valid[:n]
+    bottom = valid[-n:][::-1] if valid else []
+    return top, bottom

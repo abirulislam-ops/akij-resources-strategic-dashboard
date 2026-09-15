@@ -167,13 +167,20 @@ def page_romi():
         )
 
     # ============================================================
-    # 4. Top performing campaigns / activities
+    # 4. SBU-wise top & bottom campaigns
     # ============================================================
     st.divider()
-    st.subheader("Top Performing Campaigns")
-    top = romi_logic.top_campaigns(rows, n=10)
-    if top:
-        td = pd.DataFrame([{
+    st.subheader("Top & Bottom Campaigns")
+    sbu_labels = sorted({label_by_id.get(r["business_unit_id"], str(r["business_unit_id"]))
+                         for r in rows})
+    sbu_sel = st.selectbox("SBU", ["All SBUs"] + sbu_labels)
+    subset = rows if sbu_sel == "All SBUs" else [
+        r for r in rows if label_by_id.get(r["business_unit_id"]) == sbu_sel
+    ]
+    top, bottom = romi_logic.rank_campaigns(subset, n=10)
+
+    def _camp_table(camps):
+        d = pd.DataFrame([{
             "SBU": label_by_id.get(r["business_unit_id"], str(r["business_unit_id"])),
             "Campaign": r["campaign_name"],
             "Activity": r["category"],
@@ -181,14 +188,21 @@ def page_romi():
             "Marketing Led Increment": r["incr_rev"],
             "ROMI (Top Line)": r["romi_top"],
             "ROMI (Bottom Line)": r["romi_bottom"],
-        } for r in top])
-        td["Marketing Expense"] = td["Marketing Expense"].apply(fmt_money)
-        td["Marketing Led Increment"] = td["Marketing Led Increment"].apply(fmt_money)
-        td["ROMI (Top Line)"] = td["ROMI (Top Line)"].apply(fmt_romi)
-        td["ROMI (Bottom Line)"] = td["ROMI (Bottom Line)"].apply(fmt_romi)
-        st.dataframe(td, use_container_width=True)
-    else:
-        st.info("No campaigns with computable ROMI yet.")
+        } for r in camps])
+        if not d.empty:
+            d["Marketing Expense"] = d["Marketing Expense"].apply(fmt_money)
+            d["Marketing Led Increment"] = d["Marketing Led Increment"].apply(fmt_money)
+            d["ROMI (Top Line)"] = d["ROMI (Top Line)"].apply(fmt_romi)
+            d["ROMI (Bottom Line)"] = d["ROMI (Bottom Line)"].apply(fmt_romi)
+        return d
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Top 10 Campaigns**")
+        st.dataframe(_camp_table(top), use_container_width=True, hide_index=True)
+    with c2:
+        st.markdown("**Bottom 10 Campaigns**")
+        st.dataframe(_camp_table(bottom), use_container_width=True, hide_index=True)
 
     # ============================================================
     # 4. Reconciliation (pool vs entered expense)
