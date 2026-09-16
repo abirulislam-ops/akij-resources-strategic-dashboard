@@ -82,6 +82,7 @@ def _do_refresh():
         with st.spinner("Refreshing from DWH — this can take a minute..."):
             res = refresh.refresh_all()
         n_err = len(res["errors"])
+        n_warn = len(res.get("warnings", []))
         if n_err:
             st.session_state["romi_refresh_msg"] = (
                 f"Updated {res['updated']} of {res['total']} campaigns "
@@ -89,6 +90,13 @@ def _do_refresh():
                 "warning",
             )
             st.session_state["romi_refresh_details"] = res["errors"]
+        elif n_warn:
+            st.session_state["romi_refresh_msg"] = (
+                f"Refreshed {res['updated']} campaign(s) from DWH "
+                f"({n_warn} flag(s) to review).",
+                "warning",
+            )
+            st.session_state["romi_refresh_details"] = res.get("warnings", [])
         else:
             st.session_state["romi_refresh_msg"] = (
                 f"Refreshed {res['updated']} campaign(s) from DWH.",
@@ -267,12 +275,14 @@ def page_romi():
             continue
         pool, o = float(pool), float(o or 0)
         denom = max(pool, o, 1.0)
+        diff = (o - pool) / denom * 100
         rec.append({
             "SBU": label_by_id.get(c["business_unit_id"], str(c["business_unit_id"])),
             "Campaign": c["campaign_name"],
             "Entered O (full)": o,
             "Spend Pool (full)": pool,
-            "Diff %": (o - pool) / denom * 100,
+            "Diff %": diff,
+            "Flag": "⚠ REVIEW" if abs(diff) > 20 else "OK",
         })
     if rec:
         rec_df = pd.DataFrame(rec)

@@ -21,6 +21,23 @@ def _romi(numerator, o):
     return (numerator - o) / o
 
 
+def _baseline(g, h, g_sply):
+    """Trend-and-seasonality-adjusted organic baseline (B).
+
+    B = H * trend,  trend = clamp(G / G_SPLY, 0.5, 2.0)
+
+    H (SPLY) anchors seasonality; the trend term carries the SBU's recent
+    growth/decline forward. Falls back to H when the trend is unavailable,
+    and to G when H is unavailable. Mirrors engine._baseline.
+    """
+    if h and h > 0:
+        if g and g > 0 and g_sply and g_sply > 0:
+            trend = min(2.0, max(0.5, g / g_sply))
+            return h * trend
+        return h
+    return g
+
+
 def compute_effective(row):
     """Return a dict of all effective column values for one campaign row."""
     def get(key):
@@ -38,8 +55,10 @@ def compute_effective(row):
     h = _ov(row, "sply_rev_ov", num("sply_rev") or 0.0)
     j = _ov(row, "gp_margin_ov", num("gp_margin") or 0.0)
     o = num("marketing_expense_total") or 0.0
+    g_sply = num("organic_rev_sply") or 0.0
 
-    i = _ov(row, "incr_rev_ov", f - gg)
+    baseline = _baseline(gg, h, g_sply)
+    i = _ov(row, "incr_rev_ov", f - baseline)
     k = _ov(row, "actual_profit_ov", f * j)
     l = _ov(row, "base_profit_ov", gg * j)
     m = _ov(row, "sply_profit_ov", h * j)
@@ -59,6 +78,9 @@ def compute_effective(row):
         "actual_rev": f,
         "organic_rev": gg,
         "sply_rev": h,
+        # baseline (trend-adjusted SPLY) + its components
+        "organic_rev_sply": g_sply,
+        "baseline_rev": baseline,
         # I
         "incr_rev": i,
         # J
