@@ -16,8 +16,25 @@ end date lies in the future is only scored over the months that have
 actually elapsed (monthly reporting scope).
 """
 
-import config
 import dwh
+
+
+def _cfg():
+    """Safe config access (config.py is git-ignored, may be absent on cloud)."""
+    try:
+        import config as cfg
+        return cfg
+    except Exception:
+        pass
+
+    class _C:
+        ORGANIC_LOOKBACK_MONTHS = 6
+        GP_MARGIN_FY_START = "2025-07-01"
+        GP_MARGIN_FY_END = "2026-07-01"
+    return _C
+
+
+config = _cfg()
 
 
 def _months_between(start_date, end_date):

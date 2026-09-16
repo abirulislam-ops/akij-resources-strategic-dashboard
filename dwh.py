@@ -11,14 +11,59 @@ Sign convention in the journal:
 """
 
 import datetime as dt
+import os
 
 import pyodbc
 
-import config
+
+def _config():
+    """Resolve DWH + GL settings without hard-requiring config.py (which is
+    git-ignored because it holds secrets). Order: env vars -> Streamlit
+    secrets -> config.py -> defaults."""
+    try:
+        import config as cfg
+    except Exception:
+        cfg = None
+
+    def env_or(key, fallback):
+        v = os.environ.get(key)
+        if v:
+            return v
+        try:
+            import streamlit as st
+            v = st.secrets.get(key)
+            if v:
+                return v
+        except Exception:
+            pass
+        return fallback
+
+    dwh = (getattr(cfg, "DWH", {}) if cfg else {}) or {}
+    return {
+        "DWH": {
+            "server": env_or("DWH_SERVER", dwh.get("server", "203.202.241.211,1433")),
+            "database": env_or("DWH_DATABASE", dwh.get("database", "DWH")),
+            "user": env_or("DWH_USER", dwh.get("user", "mcp_user")),
+            "password": env_or("DWH_PASSWORD", dwh.get("password", "")),
+            "driver": dwh.get("driver", "{ODBC Driver 18 for SQL Server}"),
+        },
+        "GL_REVENUE": getattr(cfg, "GL_REVENUE", ["3010001", "3010002"]),
+        "GL_COGS": getattr(cfg, "GL_COGS", ["4810001"]),
+        "GL_MARKETING": getattr(cfg, "GL_MARKETING", "4210001"),
+        "NON_CAMPAIGN_SUBGL_KEYWORDS": getattr(cfg, "NON_CAMPAIGN_SUBGL_KEYWORDS", [
+            "commission", "discount", "salary", "allowence", "bonus",
+            "provident", "gratuity", "leave", "overtime", "utility",
+            "it expenses", "bad debt", "mro", "telephone", "transportation",
+            "fooding", "loading", "insurance",
+        ]),
+    }
+
+
+_config = _config()
 
 
 def _conn():
-    d = config.DWH
+    d = _config["DWH"]
     return pyodbc.connect(
         f"DRIVER={d['driver']};SERVER={d['server']};DATABASE={d['database']};"
         f"UID={d['user']};PWD={d['password']};"
@@ -72,19 +117,19 @@ def _monthly_series(bu_id, gl_codes, start_date, end_date, mode):
 
 def revenue_monthly(bu_id, start_date, end_date):
     """Monthly sales revenue (positive values)."""
-    return _monthly_series(bu_id, config.GL_REVENUE, start_date, end_date, "credit")
+    return _monthly_series(bu_id, _config["GL_REVENUE"], start_date, end_date, "credit")
 
 
 def cogs_monthly(bu_id, start_date, end_date):
     """Monthly cost of goods sold (signed; reversals net out)."""
-    return _monthly_series(bu_id, config.GL_COGS, start_date, end_date, "net")
+    return _monthly_series(bu_id, _config["GL_COGS"], start_date, end_date, "net")
 
 
 def marketing_monthly(bu_id, start_date, end_date):
     """Monthly marketing spend (debit only), split into full total and
     campaign-able "pool" (excludes non-campaign sub-GL categories)."""
     excl = " OR ".join(
-        [f"LOWER(strSubGLName) LIKE ?" for _ in config.NON_CAMPAIGN_SUBGL_KEYWORDS]
+        [f"LOWER(strSubGLName) LIKE ?" for _ in _config["NON_CAMPAIGN_SUBGL_KEYWORDS"]]
     )
     sql = f"""
         SELECT YEAR(dteTransactionDate) y, MONTH(dteTransactionDate) m,
@@ -98,8 +143,8 @@ def marketing_monthly(bu_id, start_date, end_date):
           AND dteTransactionDate < ?
         GROUP BY YEAR(dteTransactionDate), MONTH(dteTransactionDate)
     """
-    likes = ["%" + k + "%" for k in config.NON_CAMPAIGN_SUBGL_KEYWORDS]
-    params = likes + [bu_id, config.GL_MARKETING, start_date, end_date]
+    likes = ["%" + k + "%" for k in _config["NON_CAMPAIGN_SUBGL_KEYWORDS"]]
+    params = likes + [bu_id, _config["GL_MARKETING"], start_date, end_date]
     conn = _conn()
     try:
         cur = conn.cursor()
