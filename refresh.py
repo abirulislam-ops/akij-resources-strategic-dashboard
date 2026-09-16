@@ -43,7 +43,7 @@ def refresh_one(campaign, gp_margin_by_bu):
         "organic_rev_sply": m["g_sply"],
         "sply_rev": m["h"],
         "gp_margin": m["j"],
-        "spend_pool_total": m["pool_total"],
+        "spend_pool_total": m["o_monthly"],
         "n_months": m["n_months"],
         "as_of": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
@@ -57,13 +57,13 @@ def refresh_one(campaign, gp_margin_by_bu):
             "attribution is unreliable for such short events."
         )
     o = campaign.get("marketing_expense_total")
-    pool = m["pool_total"]
+    pool = m["o_monthly"]
     if pool and o:
         dev = (float(o) - pool) / max(pool, float(o), 1.0)
         if abs(dev) > 0.2:
             warnings.append(
-                f"{name}: entered expense (O) differs from the DWH spend pool "
-                f"by {dev*100:+,.0f}% — please reconcile."
+                f"{name}: entered expense (O) differs from the DWH monthly "
+                f"marketing spend by {dev*100:+,.0f}% — please reconcile."
             )
 
     return updates, warnings

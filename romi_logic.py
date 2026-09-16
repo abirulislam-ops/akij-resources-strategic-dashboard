@@ -22,20 +22,15 @@ def _romi(numerator, o):
 
 
 def _baseline(g, h, g_sply):
-    """Trend-and-seasonality-adjusted organic baseline (B).
+    """Organic baseline (B) = the 6-month organic average G.
 
-    B = H * trend,  trend = clamp(G / G_SPLY, 0.5, 2.0)
-
-    H (SPLY) anchors seasonality; the trend term carries the SBU's recent
-    growth/decline forward. Falls back to H when the trend is unavailable,
-    and to G when H is unavailable. Mirrors engine._baseline.
+    Matches the ROMI template: Incremental = F - G (cell "=F5-G5").
+    H (SPLY) is informational only. Falls back to H, then 0. Mirrors
+    engine._baseline.
     """
-    if h and h > 0:
-        if g and g > 0 and g_sply and g_sply > 0:
-            trend = min(2.0, max(0.5, g / g_sply))
-            return h * trend
-        return h
-    return g
+    if g and g > 0:
+        return g
+    return h or 0.0
 
 
 def compute_effective(row):
@@ -54,9 +49,11 @@ def compute_effective(row):
     gg = _ov(row, "organic_rev_ov", num("organic_rev") or 0.0)
     h = _ov(row, "sply_rev_ov", num("sply_rev") or 0.0)
     j = _ov(row, "gp_margin_ov", num("gp_margin") or 0.0)
-    o = num("marketing_expense_total") or 0.0
+    # O = reporting-month marketing spend (GL campaign pool). The officer's own
+    # per-campaign entry is kept separately as officer_expense_total.
+    o = num("spend_pool_total") or 0.0
+    officer_expense = num("marketing_expense_total") or 0.0
     g_sply = num("organic_rev_sply") or 0.0
-    n_months = num("n_months") or 1
 
     baseline = _baseline(gg, h, g_sply)
     i = _ov(row, "incr_rev_ov", f - baseline)
@@ -64,11 +61,10 @@ def compute_effective(row):
     l = _ov(row, "base_profit_ov", gg * j)
     m = _ov(row, "sply_profit_ov", h * j)
     n = _ov(row, "incr_profit_ov", i * j)
-    # ROMI compares the FULL-campaign increment against the FULL-campaign
-    # expense. i / n are MONTHLY increments (F/G/H are monthly averages), so
-    # scale them by the number of campaign months before taking the ratio.
-    p = _ov(row, "romi_top_ov", _romi(i * n_months, o))
-    r = _ov(row, "romi_bottom_ov", _romi(n * n_months, o))
+    # Monthly: F/G/H are reporting-month figures and O is the reporting-month
+    # spend, so the ratio needs no campaign-length scaling.
+    p = _ov(row, "romi_top_ov", _romi(i, o))
+    r = _ov(row, "romi_bottom_ov", _romi(n, o))
 
     return {
         # A-E (identity)
@@ -96,6 +92,7 @@ def compute_effective(row):
         "incr_profit": n,
         # O
         "marketing_expense": o,
+        "officer_expense_total": officer_expense,
         # P-R
         "romi_top": p,
         "romi_bottom": r,
@@ -112,16 +109,13 @@ def compute_effective(row):
 def sbu_totals(effective_rows):
     """Aggregate effective rows -> SBU totals (top-line and bottom-line ROMI).
 
-    Increments are monthly; scale each by its campaign length so the ROMI
-    ratio compares full-campaign increment against full-campaign expense.
+    Monthly: F/G/H are reporting-month figures and O is the reporting-month
+    spend, so no campaign-length scaling is applied.
     """
-    total_i = sum((r["incr_rev"] or 0.0) * (r.get("n_months") or 1)
-                  for r in effective_rows)
-    total_n = sum((r["incr_profit"] or 0.0) * (r.get("n_months") or 1)
-                  for r in effective_rows)
+    total_i = sum(r["incr_rev"] or 0.0 for r in effective_rows)
+    total_n = sum(r["incr_profit"] or 0.0 for r in effective_rows)
     total_o = sum(r["marketing_expense"] or 0.0 for r in effective_rows)
-    total_rev = sum((r["actual_rev"] or 0.0) * (r.get("n_months") or 1)
-                    for r in effective_rows)
+    total_rev = sum(r["actual_rev"] or 0.0 for r in effective_rows)
     return {
         "n_campaigns": len(effective_rows),
         "total_incr_rev": total_i,
@@ -141,16 +135,17 @@ COLUMN_ORDER = [
     ("report_month", "Report Month"),
     ("start_date", "Start Date"),
     ("end_date", "End Date"),
-    ("actual_rev", "Actual Revenue (monthly avg)"),
+    ("actual_rev", "Actual Revenue (month)"),
     ("organic_rev", "Organic/Base Sales (6-mo avg)"),
-    ("sply_rev", "SPLY Revenue (monthly avg)"),
-    ("incr_rev", "Marketing Led Increment (monthly)"),
+    ("sply_rev", "SPLY Revenue (month)"),
+    ("incr_rev", "Marketing Led Increment (month)"),
     ("gp_margin", "GP Margin (%)"),
     ("actual_profit", "Actual Profit"),
     ("base_profit", "Base Profit"),
     ("sply_profit", "SPLY Profit"),
     ("incr_profit", "Marketing Led Profit"),
-    ("marketing_expense", "Marketing Expense (total)"),
+    ("marketing_expense", "Marketing Expense (month, GL)"),
+    ("officer_expense_total", "Officer Expense (entered)"),
     ("romi_top", "ROMI (Top Line)"),
     ("romi_bottom", "ROMI (Bottom Line)"),
 ]

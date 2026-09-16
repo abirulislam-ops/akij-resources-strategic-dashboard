@@ -1,24 +1,22 @@
 """
-Compute engine — derives the ROMI base metrics (F, G, H, J, spend pool)
-and the formula columns (I, K, L, M, N, P, R) for one campaign.
+Compute engine — derives the ROMI base metrics (F, G, H, J, O_M) and the
+formula columns (I, K, L, M, N, P, R) for one campaign, on a MONTHLY basis.
 
-Template-faithful, MONTHLY basis (matches "ROMI tamplate and formula.xlsx"):
+Template-faithful (matches "ROMI tamplate and formula.xlsx", "Automation
+Sample": I=F-G, T=(M-S)/S, V=(R-S)/S):
 
-  F  actual revenue  = average *monthly* revenue over the campaign period
-                       (the still-running current month is extrapolated to a
-                       full-month estimate so a half-elapsed month doesn't
-                       drag the average down).
-  G  organic/base    = average monthly revenue over the 6 months BEFORE the
-                       campaign start date (plain average, no marketing filter).
-  G_SPLY             = the same 6-month lookback window, one year earlier —
-                       used only to derive a growth/decline trend.
-  H  SPLY revenue    = average monthly revenue of the same campaign months,
-                       one year earlier.
-  O  marketing expense = the campaign's expense entered by the officer.
+  F  actual revenue  = revenue in the reporting month (the still-running
+                       current month is extrapolated to a full-month estimate).
+  G  organic/base    = plain average monthly revenue over the 6 months BEFORE
+                       the campaign start date (no marketing filter).
+  G_SPLY             = the same 6-month lookback, one year earlier (reference).
+  H  SPLY revenue    = revenue in the reporting month, one year earlier.
+  O_M marketing spend = GL campaign-able marketing for the SBU in the
+                       reporting month (the ROMI denominator).
+  Increment = F - G.
 
-The campaign period is capped at the reporting month, so a campaign whose
-end date lies in the future is only scored over the months that have
-actually elapsed (monthly reporting scope).
+A campaign is scored only for the month it is ACTIVE (start <= month end and
+end >= month start); long campaigns are re-scored each month they run.
 """
 
 import calendar
@@ -46,35 +44,25 @@ config = _cfg()
 
 
 def _baseline(g, h, g_sply):
-    """Trend-and-seasonality-adjusted organic baseline (B).
+    """Organic baseline (B) = the 6-month organic average G.
 
-    B = H * trend,  trend = clamp(G / G_SPLY, 0.5, 2.0)
-
-    H (SPLY) anchors seasonality; the trend term carries the SBU's recent
-    growth/decline forward so we neither credit ALL year-on-year growth to a
-    campaign nor punish a structurally-declining SBU. Falls back to H when the
-    trend is unavailable, and to G when H is unavailable.
+    Matches the ROMI template: Incremental = F - G (cell "=F5-G5").
+    H (SPLY) is informational only. Falls back to H, then 0.
     """
-    if h and h > 0:
-        if g and g > 0 and g_sply and g_sply > 0:
-            trend = min(2.0, max(0.5, g / g_sply))
-            return h * trend
-        return h
-    return g
+    if g and g > 0:
+        return g
+    return h or 0.0
 
 
-def _months_between(start_date, end_date):
-    """Ordered list of year*100+month keys spanned by the campaign (inclusive)."""
-    keys = []
-    y, m = start_date.year, start_date.month
-    ey, em = end_date.year, end_date.month
-    while (y, m) <= (ey, em):
-        keys.append(y * 100 + m)
-        m += 1
-        if m > 12:
-            m = 1
-            y += 1
-    return keys
+def _previous_month_key(today=None):
+    """year*100+month of the most recently completed month."""
+    today = today or dt.date.today()
+    y, m = today.year, today.month
+    m -= 1
+    if m == 0:
+        m = 12
+        y -= 1
+    return y * 100 + m
 
 
 def _to_key(report_month):
@@ -106,30 +94,41 @@ def _extrapolate_current_month(rev, camp_months, today=None):
 
 
 def compute_metrics(bu_id, start_date, end_date, gp_margin=None, report_month=None):
-    """Compute F (actual), G (organic), G_SPLY, H (SPLY), J (gp margin) and spend pool."""
-    camp_months = _months_between(start_date, end_date)
-    cap = _to_key(report_month)
-    if cap is not None:
-        camp_months = [k for k in camp_months if k <= cap]
-    n_months = max(len(camp_months), 1)
+    """Monthly ROMI metrics for a single reporting month.
 
-    camp_from = dwh.key_to_date(camp_months[0])
-    camp_to = dwh.key_after(camp_months[-1])
+    report_month = the month being scored ('YYYY-MM' / 'YYYYMM' / int key).
+    Defaults to the previous calendar month (the most recent fully-elapsed
+    month, whose DWH figures are complete).
 
-    # ---- F: monthly-average campaign revenue (current month extrapolated) ----
-    rev = dwh.revenue_monthly(bu_id, camp_from, camp_to)
-    rev = _extrapolate_current_month(rev, camp_months)
-    f = sum(rev.get(k, 0.0) for k in camp_months) / n_months
+    A campaign is scored only for the month it is ACTIVE (start <= month end
+    and end >= month start); long campaigns are re-scored each month they run.
 
-    # ---- H: monthly-average SPLY (same months, one year earlier) ----
-    sply_months = [dwh.shift_ym(k, -12) for k in camp_months]
-    sply_from = dwh.key_to_date(min(sply_months))
-    sply_to = dwh.key_after(max(sply_months))
-    rev_sply = dwh.revenue_monthly(bu_id, sply_from, sply_to)
-    h = sum(rev_sply.get(k, 0.0) for k in sply_months) / n_months
+      F  actual revenue = revenue in the reporting month (extrapolated to a
+         full month if it is the still-running current month).
+      G  organic/base  = plain 6-month average revenue before campaign start.
+      H  SPLY revenue  = the same reporting month, one year earlier.
+      O_M  = GL campaign-able marketing spend for the SBU in the reporting
+             month (the ROMI denominator — same scale as revenue).
+      Increment = F - G   (template formula =F-G).
+    """
+    m_key = _to_key(report_month) if report_month is not None else _previous_month_key()
+    m_start = dwh.key_to_date(m_key)
+    m_end = dwh.key_after(m_key)
 
-    # ---- G: organic/base = plain average of the 6 months before campaign start ----
-    start_key = camp_months[0]
+    active = (start_date < m_end) and (end_date >= m_start)
+
+    # ---- F: reporting-month revenue (current month extrapolated) ----
+    rev = dwh.revenue_monthly(bu_id, m_start, m_end)
+    rev = _extrapolate_current_month(rev, [m_key])
+    f = rev.get(m_key, 0.0)
+
+    # ---- H: SPLY revenue (same month, one year earlier) ----
+    h_key = dwh.shift_ym(m_key, -12)
+    rev_sply = dwh.revenue_monthly(bu_id, dwh.key_to_date(h_key), dwh.key_after(h_key))
+    h = rev_sply.get(h_key, 0.0)
+
+    # ---- G: organic/base = plain 6-month average before campaign start ----
+    start_key = dwh.parse_ym(start_date)
     lookback_keys = [dwh.shift_ym(start_key, -i)
                      for i in range(1, config.ORGANIC_LOOKBACK_MONTHS + 1)]
     lb_from = dwh.key_to_date(min(lookback_keys))
@@ -144,20 +143,16 @@ def compute_metrics(bu_id, start_date, end_date, gp_margin=None, report_month=No
     rev_slb = dwh.revenue_monthly(bu_id, slb_from, slb_to)
     g_sply = sum(rev_slb.get(k, 0.0) for k in sply_lb_keys) / config.ORGANIC_LOOKBACK_MONTHS
 
-    # ---- J: GP margin (fixed per SBU; compute FY on demand if not supplied) ----
+    # ---- J: GP margin (fixed per SBU) ----
     if gp_margin is None:
         gp_margin = dwh.gp_margin(bu_id, config.GP_MARGIN_FY_START, config.GP_MARGIN_FY_END)
 
-    # ---- Spend pool: campaign-able marketing over the campaign window ----
-    _, pool = dwh.marketing_monthly(bu_id, camp_from, camp_to)
-    pool_total = sum(pool.get(k, 0.0) for k in camp_months)
+    # ---- O_M: GL campaign-able marketing spend in the reporting month ----
+    _, pool = dwh.marketing_monthly(bu_id, m_start, m_end)
+    o_monthly = pool.get(m_key, 0.0)
 
-    # ---- Baseline B (trend-adjusted SPLY) + increment I = F - B ----
     baseline = _baseline(g, h, g_sply)
     incr = f - baseline
-
-    # ---- Short campaign flag (< 15 days: monthly attribution is unreliable) ----
-    short = (end_date - start_date).days < 15
 
     return {
         "f": f,
@@ -165,32 +160,35 @@ def compute_metrics(bu_id, start_date, end_date, gp_margin=None, report_month=No
         "g_sply": g_sply,
         "h": h,
         "j": gp_margin,
-        "pool_total": pool_total,
-        "n_months": n_months,
-        "campaign_months": camp_months,
+        "o_monthly": o_monthly,
+        "n_months": 1,
+        "active": active,
         "baseline": baseline,
         "incr_rev": incr,
-        "short_campaign": short,
+        "short_campaign": (end_date - start_date).days < 15,
     }
 
 
 def derive_formulas(m, o):
-    """Compute the formula columns from base metrics (m) + campaign expense (o)."""
+    """Compute the formula columns from base metrics (m) + marketing expense (o).
+
+    Monthly: the increment is F - G for the single reporting month and the
+    denominator o is the reporting-month marketing spend.
+    """
     f = m["f"]
     g = m["g"]
     g_sply = m.get("g_sply")
     h = m["h"]
     j = (m["j"] or 0.0)
-    n_months = m.get("n_months") or 1
 
     baseline = _baseline(g, h, g_sply)
-    i = f - baseline           # marketing led increment (monthly)
+    i = f - baseline           # marketing-led increment (reporting month)
     k = f * j                  # actual profit
     l = g * j                  # base profit
     m2 = h * j                 # SPLY profit
-    n = i * j                  # marketing led profit (monthly)
-    p = _romi(i * n_months, o)  # top-line ROMI (full-campaign increment)
-    r = _romi(n * n_months, o)  # bottom-line ROMI
+    n = i * j                  # marketing-led profit (reporting month)
+    p = _romi(i, o)            # top-line ROMI
+    r = _romi(n, o)            # bottom-line ROMI
 
     return {
         "incr_rev": i,
