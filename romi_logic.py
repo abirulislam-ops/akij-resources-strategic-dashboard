@@ -56,6 +56,7 @@ def compute_effective(row):
     j = _ov(row, "gp_margin_ov", num("gp_margin") or 0.0)
     o = num("marketing_expense_total") or 0.0
     g_sply = num("organic_rev_sply") or 0.0
+    n_months = num("n_months") or 1
 
     baseline = _baseline(gg, h, g_sply)
     i = _ov(row, "incr_rev_ov", f - baseline)
@@ -63,8 +64,11 @@ def compute_effective(row):
     l = _ov(row, "base_profit_ov", gg * j)
     m = _ov(row, "sply_profit_ov", h * j)
     n = _ov(row, "incr_profit_ov", i * j)
-    p = _ov(row, "romi_top_ov", _romi(i, o))
-    r = _ov(row, "romi_bottom_ov", _romi(n, o))
+    # ROMI compares the FULL-campaign increment against the FULL-campaign
+    # expense. i / n are MONTHLY increments (F/G/H are monthly averages), so
+    # scale them by the number of campaign months before taking the ratio.
+    p = _ov(row, "romi_top_ov", _romi(i * n_months, o))
+    r = _ov(row, "romi_bottom_ov", _romi(n * n_months, o))
 
     return {
         # A-E (identity)
@@ -106,11 +110,18 @@ def compute_effective(row):
 
 
 def sbu_totals(effective_rows):
-    """Aggregate effective rows -> SBU totals (top-line and bottom-line ROMI)."""
-    total_i = sum(r["incr_rev"] or 0.0 for r in effective_rows)
-    total_n = sum(r["incr_profit"] or 0.0 for r in effective_rows)
+    """Aggregate effective rows -> SBU totals (top-line and bottom-line ROMI).
+
+    Increments are monthly; scale each by its campaign length so the ROMI
+    ratio compares full-campaign increment against full-campaign expense.
+    """
+    total_i = sum((r["incr_rev"] or 0.0) * (r.get("n_months") or 1)
+                  for r in effective_rows)
+    total_n = sum((r["incr_profit"] or 0.0) * (r.get("n_months") or 1)
+                  for r in effective_rows)
     total_o = sum(r["marketing_expense"] or 0.0 for r in effective_rows)
-    total_rev = sum(r["actual_rev"] or 0.0 for r in effective_rows)
+    total_rev = sum((r["actual_rev"] or 0.0) * (r.get("n_months") or 1)
+                    for r in effective_rows)
     return {
         "n_campaigns": len(effective_rows),
         "total_incr_rev": total_i,
@@ -133,13 +144,13 @@ COLUMN_ORDER = [
     ("actual_rev", "Actual Revenue (monthly avg)"),
     ("organic_rev", "Organic/Base Sales (6-mo avg)"),
     ("sply_rev", "SPLY Revenue (monthly avg)"),
-    ("incr_rev", "Marketing Led Increment"),
+    ("incr_rev", "Marketing Led Increment (monthly)"),
     ("gp_margin", "GP Margin (%)"),
     ("actual_profit", "Actual Profit"),
     ("base_profit", "Base Profit"),
     ("sply_profit", "SPLY Profit"),
     ("incr_profit", "Marketing Led Profit"),
-    ("marketing_expense", "Marketing Expense"),
+    ("marketing_expense", "Marketing Expense (total)"),
     ("romi_top", "ROMI (Top Line)"),
     ("romi_bottom", "ROMI (Bottom Line)"),
 ]
@@ -248,7 +259,8 @@ def branchmark_table_html(rows):
         if v is None:
             return "—"
         tip = _html.escape(note) if note else ""
-        return (f"<span class='tip'>≥{float(v):,.2f}x"
+        label = f"≥{float(v):,.2f}x" if float(v) >= 0 else f"{float(v):,.2f}x"
+        return (f"<span class='tip'>{label}"
                 f"<span class='tooltip'>{tip}</span></span>")
 
     def gap_cell(actual, mark):
@@ -272,8 +284,8 @@ def branchmark_table_html(rows):
         else:
             hit = ((rt or 0) >= (bt if bt is not None else -1e18)
                    and (rb or 0) >= (bb if bb is not None else -1e18))
-            status = ("<span class='hit'>HITTING</span>" if hit
-                      else "<span class='miss'>MISSING</span>")
+            status = ("<span class='hit'>ON TRACK</span>" if hit
+                      else "<span class='miss'>BELOW MARK</span>")
         body.append(
             f"<tr><td>{_html.escape(r['code'])}</td>"
             f"<td class='n'>{r['n_campaigns']}</td>"

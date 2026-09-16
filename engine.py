@@ -181,15 +181,16 @@ def derive_formulas(m, o):
     g_sply = m.get("g_sply")
     h = m["h"]
     j = (m["j"] or 0.0)
+    n_months = m.get("n_months") or 1
 
     baseline = _baseline(g, h, g_sply)
     i = f - baseline           # marketing led increment (monthly)
     k = f * j                  # actual profit
     l = g * j                  # base profit
     m2 = h * j                 # SPLY profit
-    n = i * j                  # marketing led profit
-    p = _romi(i, o)            # top-line ROMI
-    r = _romi(n, o)            # bottom-line ROMI
+    n = i * j                  # marketing led profit (monthly)
+    p = _romi(i * n_months, o)  # top-line ROMI (full-campaign increment)
+    r = _romi(n * n_months, o)  # bottom-line ROMI
 
     return {
         "incr_rev": i,
