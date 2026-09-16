@@ -74,10 +74,58 @@ def _effective_df():
     return campaigns, rows, sbus
 
 
+def _do_refresh():
+    """Run the DWH -> Supabase refresh. Lazy-imports the refresh engine so the
+    dashboard still loads when the DWH / pyodbc is unavailable."""
+    try:
+        import refresh
+        with st.spinner("Refreshing from DWH — this can take a minute..."):
+            res = refresh.refresh_all()
+        n_err = len(res["errors"])
+        if n_err:
+            st.session_state["romi_refresh_msg"] = (
+                f"Updated {res['updated']} of {res['total']} campaigns "
+                f"({n_err} skipped).",
+                "warning",
+            )
+            st.session_state["romi_refresh_details"] = res["errors"]
+        else:
+            st.session_state["romi_refresh_msg"] = (
+                f"Refreshed {res['updated']} campaign(s) from DWH.",
+                "success",
+            )
+    except Exception as e:
+        st.session_state["romi_refresh_msg"] = (f"Refresh failed: {e}", "error")
+    st.rerun()
+
+
 def page_romi():
     st.title("ROMI Analysis")
     st.caption("Marketing campaign ROI per SBU. Edit any value to override the "
                "auto-computed figure; 'reset' returns it to automatic.")
+
+    # Flash message from a previous refresh (survives the st.rerun()).
+    if "romi_refresh_msg" in st.session_state:
+        msg, kind = st.session_state.pop("romi_refresh_msg")
+        if kind == "success":
+            st.success(msg)
+        elif kind == "warning":
+            st.warning(msg)
+            if "romi_refresh_details" in st.session_state:
+                with st.expander("Skipped / errors"):
+                    for e in st.session_state.pop("romi_refresh_details"):
+                        st.write(e)
+        else:
+            st.error(msg)
+
+    # Refresh from DWH button (admin).
+    rcol1, rcol2 = st.columns([1, 4])
+    with rcol1:
+        if st.button("Refresh from DWH", use_container_width=True):
+            _do_refresh()
+    with rcol2:
+        st.caption("Pull the latest revenue / spend / GP-margin figures from the "
+                   "DWH into every campaign (requires office-network DWH access).")
 
     campaigns, rows, sbus = _effective_df()
     if not campaigns:
