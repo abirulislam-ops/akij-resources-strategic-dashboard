@@ -16,3 +16,8 @@ config.py
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# PyInstaller build artifacts (never commit the .exe — it embeds secrets)
+build/
+dist/
+*.spec

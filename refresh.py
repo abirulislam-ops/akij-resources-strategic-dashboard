@@ -69,17 +69,23 @@ def refresh_one(campaign, gp_margin_by_bu):
     return updates, warnings
 
 
-def refresh_all():
+def refresh_all(verbose=False):
     """Refresh every campaign. Returns {total, updated, errors, warnings}."""
+    if verbose:
+        print("  Fetching SBU list...", flush=True)
     sbus = sc.fetch_sbus()
     gp_margin_by_bu = {int(s["business_unit_id"]): s.get("gp_margin") for s in sbus}
 
+    if verbose:
+        print("  Fetching campaigns...", flush=True)
     campaigns = sc.fetch_campaigns()
     updated = 0
     errors = []
     warnings = []
-    for c in campaigns:
+    for i, c in enumerate(campaigns, 1):
         try:
+            if verbose:
+                print(f"  [{i}/{len(campaigns)}] {c.get('campaign_name')}", flush=True)
             updates, warns = refresh_one(c, gp_margin_by_bu)
             sc.update_campaign(c["id"], updates)
             updated += 1
