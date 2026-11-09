@@ -1,7 +1,8 @@
 # SPA Shared Dashboard
 
 The Streamlit dashboard colleagues access from **anywhere**. It reads the
-**Supabase branch** (not the office DWH) and requires login.
+**Supabase branch** (not the office DWH) and requires login. ROMI metrics are
+computed from the **live ERP (iBOSDDD)** via the enterprise-api-gateway.
 
 ## Features
 

@@ -75,11 +75,11 @@ def _effective_df():
 
 
 def _do_refresh():
-    """Run the DWH -> Supabase refresh. Lazy-imports the refresh engine so the
-    dashboard still loads when the DWH / pyodbc is unavailable."""
+    """Run the ERP -> Supabase refresh. Lazy-imports the refresh engine so the
+    dashboard still loads when the gateway is unavailable."""
     try:
         import refresh
-        with st.spinner("Refreshing from DWH — this can take a minute..."):
+        with st.spinner("Refreshing from ERP — this can take a minute..."):
             res = refresh.refresh_all()
         n_err = len(res["errors"])
         n_warn = len(res.get("warnings", []))
@@ -92,14 +92,14 @@ def _do_refresh():
             st.session_state["romi_refresh_details"] = res["errors"]
         elif n_warn:
             st.session_state["romi_refresh_msg"] = (
-                f"Refreshed {res['updated']} campaign(s) from DWH "
+                f"Refreshed {res['updated']} campaign(s) from ERP "
                 f"({n_warn} flag(s) to review).",
                 "warning",
             )
             st.session_state["romi_refresh_details"] = res.get("warnings", [])
         else:
             st.session_state["romi_refresh_msg"] = (
-                f"Refreshed {res['updated']} campaign(s) from DWH.",
+                f"Refreshed {res['updated']} campaign(s) from ERP.",
                 "success",
             )
     except Exception as e:
@@ -126,14 +126,14 @@ def page_romi():
         else:
             st.error(msg)
 
-    # Refresh from DWH button (admin).
+    # Refresh from ERP button (admin).
     rcol1, rcol2 = st.columns([1, 4])
     with rcol1:
-        if st.button("Refresh from DWH", use_container_width=True):
+        if st.button("Refresh from ERP", use_container_width=True):
             _do_refresh()
     with rcol2:
         st.caption("Pull the latest revenue / spend / GP-margin figures from the "
-                   "DWH into every campaign (requires office-network DWH access).")
+                   "live ERP into every campaign.")
 
     campaigns, rows, sbus = _effective_df()
     if not campaigns:

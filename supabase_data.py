@@ -119,6 +119,23 @@ def _client_with_token(access_token):
     return client
 
 
+def _is_missing_table(exc):
+    """True when a PostgREST error means the table no longer exists (retired)."""
+    code = getattr(exc, "code", None)
+    msg = str(getattr(exc, "message", None) or "")
+    return code == "PGRST205" or "Could not find the table" in msg
+
+
+def _execute(q):
+    """Execute a PostgREST query, returning None when the table is retired."""
+    try:
+        return q.execute()
+    except Exception as e:
+        if _is_missing_table(e):
+            return None
+        raise
+
+
 def fetch_table(access_token, table, columns="*", filters=None, limit=5000):
     """Read rows from a branch table via the user's authenticated session (RLS)."""
     client = _client_with_token(access_token)
@@ -127,7 +144,9 @@ def fetch_table(access_token, table, columns="*", filters=None, limit=5000):
         for col, val in filters.items():
             q = q.eq(col, val)
     q = q.limit(limit)
-    res = q.execute()
+    res = _execute(q)
+    if res is None:
+        return pd.DataFrame()
     return pd.DataFrame(res.data or [])
 
 
@@ -138,7 +157,9 @@ def fetch_count(access_token, table, filters=None):
     if filters:
         for col, val in filters.items():
             q = q.eq(col, val)
-    res = q.execute()
+    res = _execute(q)
+    if res is None:
+        return 0
     return res.count or 0
 
 
@@ -153,7 +174,9 @@ def fetch_all(access_token, table, columns="*", filters=None, page_size=1000, ma
             for col, val in filters.items():
                 q = q.eq(col, val)
         q = q.range(offset, offset + page_size - 1)
-        res = q.execute()
+        res = _execute(q)
+        if res is None:
+            break
         data = res.data or []
         if not data:
             break

@@ -72,8 +72,22 @@ def _download(df, label, filename):
 
 
 def _bu_list(token):
+    """Business-unit list for the SBU filter — fetched from the live ERP
+    (iBOSDDD) via the enterprise-api-gateway, not the retired Supabase mirror."""
     if "bu_df" not in st.session_state:
-        st.session_state["bu_df"] = sd.fetch_all(token, "business_unit")
+        df = pd.DataFrame(columns=["business_unit_id", "short_code", "business_unit", "is_active"])
+        try:
+            import dwh
+            rows = dwh.list_sbus(active_only=False)
+            if rows:
+                df = pd.DataFrame(
+                    rows,
+                    columns=["business_unit_id", "short_code", "business_unit", "is_active"],
+                )
+        except Exception:
+            # Gateway unreachable — keep the empty frame so the app still renders.
+            pass
+        st.session_state["bu_df"] = df
     return st.session_state["bu_df"]
 
 

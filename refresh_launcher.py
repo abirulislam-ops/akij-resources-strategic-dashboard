@@ -1,9 +1,9 @@
 """
-Double-click launcher for the ROMI DWH refresh.
+Double-click launcher for the ROMI ERP refresh.
 
 Runs refresh.refresh_all(), prints a human-readable summary, and pauses so the
 console window stays open. Intended to be bundled into a standalone .exe with
-PyInstaller (runs on the office machine, which has DWH + ODBC access).
+PyInstaller (runs on the office machine, which has gateway access).
 """
 
 import os
@@ -28,7 +28,7 @@ def main():
         pass
 
     print("=" * 60)
-    print("  AKIJ ROMI  —  Refresh from DWH")
+    print("  AKIJ ROMI  —  Refresh from ERP")
     print("=" * 60)
     print("Pulling revenue / spend / GP-margin for all campaigns...\n")
 

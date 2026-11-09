@@ -1,9 +1,9 @@
 """
-Refresh engine — recompute ROMI base metrics for all campaigns from the DWH
-and write results back to Supabase.
+Refresh engine — recompute ROMI base metrics for all campaigns from the live
+ERP and write results back to Supabase.
 
-Invoked from the SPA dashboard "ROMI Analysis" tab via the "Refresh from DWH"
-button, and also runnable on-premise (needs DWH + ODBC access):
+Invoked from the SPA dashboard "ROMI Analysis" tab via the "Refresh from ERP"
+button, and also runnable on-premise (needs gateway access):
 
     python refresh.py
 
@@ -62,7 +62,7 @@ def refresh_one(campaign, gp_margin_by_bu):
         dev = (float(o) - pool) / max(pool, float(o), 1.0)
         if abs(dev) > 0.2:
             warnings.append(
-                f"{name}: entered expense (O) differs from the DWH monthly "
+                f"{name}: entered expense (O) differs from the ERP monthly "
                 f"marketing spend by {dev*100:+,.0f}% — please reconcile."
             )
 
@@ -98,7 +98,7 @@ def refresh_all(verbose=False):
 
 if __name__ == "__main__":
     r = refresh_all()
-    print(f"Refreshing {r['total']} campaign(s) from DWH...")
+    print(f"Refreshing {r['total']} campaign(s) from ERP...")
     for w in r["warnings"]:
         print(f"  [warn] {w}")
     for e in r["errors"]:

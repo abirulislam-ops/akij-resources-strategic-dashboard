@@ -98,7 +98,7 @@ def compute_metrics(bu_id, start_date, end_date, gp_margin=None, report_month=No
 
     report_month = the month being scored ('YYYY-MM' / 'YYYYMM' / int key).
     Defaults to the previous calendar month (the most recent fully-elapsed
-    month, whose DWH figures are complete).
+    month, whose ERP figures are complete).
 
     A campaign is scored only for the month it is ACTIVE (start <= month end
     and end >= month start); long campaigns are re-scored each month they run.
